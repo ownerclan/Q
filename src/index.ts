@@ -118,7 +118,7 @@ interface UpdateBuilder<S extends Schema, T extends keyof S["tables"], A extends
     where: Expression,
   };
 
-  set(value: UpdateValues<S["tables"][T]["value"]["columns"]> | Select<TsToRecord<InsertValues<S["tables"][T]["value"]["columns"]>>>): Update;
+  set(value: UpdateValues<S["tables"][T]["value"]["columns"]> | Select<TsToRecord<UpdateValues<S["tables"][T]["value"]["columns"]>>>): Update;
   where(fn: (aliases: A) => Expression): UpdateBuilder<S, T, A>;
 }
 
