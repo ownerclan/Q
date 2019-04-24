@@ -375,5 +375,8 @@ export function q<T = any>(text: readonly string[], ...args: Expression[]): Vari
   } as any;
 }
 
+export type ExpressionToTs<T extends Expression> = T extends { tsType: any } ? T["tsType"] : unknown;
+export type SelectToTs<T extends Select<Record_>> = { [key in keyof T["value"]]: ExpressionToTs<T["value"][key]> };
+
 export * from "./sqlFunction";
 export * from "./columnTypes";
