@@ -294,8 +294,8 @@ export function Q<S extends Schema>(schema: S): Q<S> {
                 `INSERT INTO \`${table}\``
                 + (isSelectQuery(value)
                   ? ` (${Object.keys(value).map((i) => `\`${i}\``).join(", ")}) ${value}`
-                  // NOTE: v !== undefined looks unnecessary
-                  : ` SET ${Object.entries(value).map(([k, v]) => v !== undefined ? `\`${k}\` = ${$(v)}` : "").join(", ")}`),
+                  // NOTE: v !== undefined looks unnecessary and maybe `as any` also
+                  : ` SET ${Object.entries(value).map(([k, v]) => v !== undefined ? `\`${k}\` = ${$(v as any)}` : "").join(", ")}`),
                 parameters];
             },
           };
