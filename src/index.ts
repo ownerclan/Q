@@ -30,7 +30,7 @@ type RecordOfTable<T extends Table<{ [key: string]: Column<any, boolean, boolean
 
 type TablePrimary<S extends Schema> = keyof S["tables"] | Select<Record_>;
 
-type TsToSQLRecord<T extends {}> = { [key in keyof T]: Variable<T[key]> };
+type TsToRecord<T extends {}> = { [key in keyof T]: Variable<T[key]> };
 
 interface SelectBuilder<S extends Schema, A extends Aliases> {
   readonly value: {
@@ -99,7 +99,7 @@ interface Insert {
 }
 
 interface InsertBuilder<S extends Schema, T extends keyof S["tables"]> {
-  set(value: InsertValues<S["tables"][T]["value"]["columns"]> | Select<TsToSQLRecord<InsertValues<S["tables"][T]["value"]["columns"]>>>): Insert;
+  set(value: InsertValues<S["tables"][T]["value"]["columns"]> | Select<TsToRecord<InsertValues<S["tables"][T]["value"]["columns"]>>>): Insert;
 }
 
 type UpdateValues<T extends Table<any>["value"]["columns"]> = {
@@ -118,7 +118,7 @@ interface UpdateBuilder<S extends Schema, T extends keyof S["tables"], A extends
     where: Expression,
   };
 
-  set(value: UpdateValues<S["tables"][T]["value"]["columns"]> | Select<TsToSQLRecord<InsertValues<S["tables"][T]["value"]["columns"]>>>): Update;
+  set(value: UpdateValues<S["tables"][T]["value"]["columns"]> | Select<TsToRecord<InsertValues<S["tables"][T]["value"]["columns"]>>>): Update;
   where(fn: (aliases: A) => Expression): UpdateBuilder<S, T, A>;
 }
 
