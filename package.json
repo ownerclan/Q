@@ -22,6 +22,7 @@
   },
   "scripts": {
     "build": "tsc -p ./src -d && tsc -p ./src",
+    "prepare": "npm run build",
     "prepublish": "npm run build"
   },
   "author": "",
