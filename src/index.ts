@@ -125,7 +125,7 @@ interface UpdateBuilder<S extends Schema, T extends keyof S["tables"], A extends
 interface Q<S extends Schema> {
   from<T extends keyof S["tables"]>(table: T): SelectBuilder<S, { [key in T]: RecordOfTable<S["tables"][T]> }>;
   from<T extends keyof S["tables"], A extends string>(table: T, alias: A): SelectBuilder<S, { [key in A]: RecordOfTable<S["tables"][T]> }>;
-  from<T extends Select<Record_>, A extends string>(query: T, alias: A): SelectBuilder<S, { [key in A]: { [key in keyof T["value"]]: Variable<T["value"]> } }>;
+  from<T extends Select<Record_>, A extends string>(query: T, alias: A): SelectBuilder<S, { [key in A]: T["value"] }>;
 
   insert<T extends keyof S["tables"]>(table: T): InsertBuilder<S, T>;
   update<T extends keyof S["tables"]>(table: T): UpdateBuilder<S, T, { [key in T]: RecordOfTable<S["tables"][T]> }>;
