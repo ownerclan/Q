@@ -32,6 +32,16 @@ type TablePrimary<S extends Schema> = keyof S["tables"] | Select<Record_>;
 
 type TsToRecord<T extends {}> = { [key in keyof T]: Variable<T[key]> };
 
+type OrderDirection = "asc" | "desc";
+
+type OrderBy = [Expression, OrderDirection];
+
+interface OrderByBuilder {
+  value: OrderBy;
+  asc(): OrderByBuilder;
+  desc(): OrderByBuilder;
+}
+
 interface SelectBuilder<S extends Schema, A extends Aliases> {
   readonly value: {
     from: TablePrimary<S>;
@@ -39,7 +49,7 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
     joins: Array<[TablePrimary<S>, keyof A, ["on", Expression] | ["using", Expression | [Expression, Expression]]]>;
     where?: Expression;
     groupBy: { by: Expression[], having?: Expression };
-    orderBy: Array<{ by: Expression, direction: "asc" | "desc" }>;
+    orderBy: OrderBy[];
     limit?: number;
     offset?: number;
   };
@@ -48,9 +58,10 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
   join<T extends keyof S["tables"], A extends string>(table: T, alias: A): JoiningBuilder<S, A & { [key in A]: RecordOfTable<S["tables"][T]> }, RecordOfTable<S["tables"][T]>, A>;
   join<T extends Select<Record_>, A extends string>(query: T, alias: A): JoiningBuilder<S, A & { [key in A]: T["value"] }, T["value"], A>;
 
-  where(fn: (aliases: A) => Expression): AfterJoinBuilder<S, A>;
-  groupBy(fn: (aliases: A) => Expression | Expression[]): GroupingBuilder<S, A>;
-  orderBy(fn: (aliases: A) => Expression, direction?: "asc" | "desc"): AfterJoinBuilder<S, A>;
+  where(fn: (aliases: A, prev?: Expression) => Expression): AfterJoinBuilder<S, A>;
+  groupBy(fn: (aliases: A, prev?: Expression[]) => Expression | Expression[]): GroupingBuilder<S, A>;
+  orderBy(fn: (aliases: { [key in keyof A]: { [key_ in keyof A[key]]: OrderByBuilder } }, prev?: OrderBy[]) => OrderByBuilder | OrderByBuilder[]): AfterJoinBuilder<S, A>;
+
   limit(value: number): AfterJoinBuilder<S, A>;
   offset(value: number): AfterJoinBuilder<S, A>;
 
@@ -67,7 +78,7 @@ interface JoiningBuilder<S extends Schema, A extends Aliases, Joinee extends Rec
 
 type AfterJoinBuilder<S extends Schema, A extends Aliases> = Omit<SelectBuilder<S, A>, "join">;
 interface GroupingBuilder<S extends Schema, A extends Aliases> extends AfterJoinBuilder<S, A> {
-  having(fn: (scope: A) => Expression): AfterJoinBuilder<S, A>;
+  having(fn: (aliases: A, prev?: Expression) => Expression): AfterJoinBuilder<S, A>;
 }
 
 interface Select<Return extends Record_> {
@@ -216,7 +227,7 @@ export function Q<S extends Schema>(schema: S): Q<S> {
             + (value.where ? ` WHERE ${$(value.where)}` : "")
             + (value.groupBy.by.length ? " GROUP BY " + value.groupBy.by.map((i) => $(i)).join(", ") : "")
             + (value.groupBy.having ? ` HAVING ${$(value.groupBy.having)}` : "")
-            + (value.orderBy.map((i) => ` ORDER BY ${$(i.by)} ${i.direction.toUpperCase()}`).join(" "))
+            + (value.orderBy.length ? (" ORDER BY " + value.orderBy.map(([by, direction]) => `${$(by)} ${direction.toUpperCase()}`).join(", ")) : "")
             + (value.limit !== undefined ? ` LIMIT ${value.limit}` : "")
             + (value.offset !== undefined ? ` OFFSET ${value.offset}` : ""),
             parameters] as const;
@@ -224,7 +235,7 @@ export function Q<S extends Schema>(schema: S): Q<S> {
         return {
           value,
           groupBy: (fn) => {
-            const by = fn(value.aliases);
+            const by = fn(value.aliases, value.groupBy.by);
             return {
               ...buildSelect({ ...value, groupBy: { by: Array.isArray(by) ? by : [by] } }),
               having(fn) {
@@ -232,8 +243,23 @@ export function Q<S extends Schema>(schema: S): Q<S> {
               },
             };
           },
-          orderBy(fn, direction = "asc") {
-            return buildSelect({ ...value, orderBy: [...value.orderBy, { by: fn(value.aliases), direction }] });
+          orderBy(fn) {
+            const value_ = fn(_.mapValues(value.aliases,
+              (v) => _.mapValues(v, (v) => {
+                function buildBuilder(value: OrderBy): OrderByBuilder {
+                  return {
+                    value,
+                    asc() {
+                      return buildBuilder([value[0], "asc"]);
+                    },
+                    desc() {
+                      return buildBuilder([value[0], "desc"]);
+                    },
+                  };
+                }
+                return buildBuilder([v, "asc"]);
+              })), value.orderBy);
+            return buildSelect({ ...value, orderBy: [...value.orderBy, ...Array.isArray(value_) ? value_.map((i) => i.value) : [value_.value]] });
           },
           limit: (value_) => buildSelect({ ...value, limit: value_ }),
           offset: (value_) => buildSelect({ ...value, offset: value_ }),
@@ -257,7 +283,7 @@ export function Q<S extends Schema>(schema: S): Q<S> {
             } as any;
           },
           where(fn) {
-            return buildSelect({ ...value, where: fn(value.aliases) });
+            return buildSelect({ ...value, where: fn(value.aliases, value.where) });
           },
         };
       }
