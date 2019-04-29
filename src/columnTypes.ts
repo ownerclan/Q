@@ -16,7 +16,7 @@ export function Enum<T extends { [key: number]: string }>(values: T): Column<T[n
   return columnBuilder({ values });
 }
 
-export function Timestamp(): Column<number> {
+export function Timestamp(): Column<Date> {
   return columnBuilder();
 }
 
