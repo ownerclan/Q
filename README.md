@@ -16,7 +16,7 @@ npm i git@github.com:ownerclan/Q.git
 And type the code below in VS Code and you will love Q.
 
 ```typescript
-import { count, distinct, Enum, Int, JSON, Q, q, SelectToTs, Table, Varchar } from "Q";
+import { count, distinct, Enum, Int, JSON, Q, q, SelectToTs, Table, Varchar } from "@mi6/Q";
 
 const human =
   Table({
