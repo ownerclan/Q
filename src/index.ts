@@ -244,21 +244,19 @@ export function Q<S extends Schema>(schema: S): Q<S> {
             };
           },
           orderBy(fn) {
+            function buildBuilder(value: OrderBy): OrderByBuilder {
+              return {
+                value,
+                asc() {
+                  return buildBuilder([value[0], "asc"]);
+                },
+                desc() {
+                  return buildBuilder([value[0], "desc"]);
+                },
+              };
+            }
             const value_ = fn(_.mapValues(value.aliases,
-              (v) => _.mapValues(v, (v) => {
-                function buildBuilder(value: OrderBy): OrderByBuilder {
-                  return {
-                    value,
-                    asc() {
-                      return buildBuilder([value[0], "asc"]);
-                    },
-                    desc() {
-                      return buildBuilder([value[0], "desc"]);
-                    },
-                  };
-                }
-                return buildBuilder([v, "asc"]);
-              })), value.orderBy);
+              (v) => _.mapValues(v, (v) => buildBuilder([v, "asc"]))), value.orderBy.map(buildBuilder));
             return buildSelect({ ...value, orderBy: [...value.orderBy, ...Array.isArray(value_) ? value_.map((i) => i.value) : [value_.value]] });
           },
           limit: (value_) => buildSelect({ ...value, limit: value_ }),
