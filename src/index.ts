@@ -59,8 +59,8 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
   join<T extends Select<Record_>, A extends string>(query: T, alias: A): JoiningBuilder<S, A & { [key in A]: T["value"] }, T["value"], A>;
 
   where(fn: (aliases: A, prev?: Expression) => Expression): AfterJoinBuilder<S, A>;
-  groupBy(fn: (aliases: A, prev?: Expression[]) => Expression | Expression[]): GroupingBuilder<S, A>;
-  orderBy(fn: (aliases: { [key in keyof A]: { [key_ in keyof A[key]]: OrderByBuilder } }, prev?: OrderBy[]) => OrderByBuilder | OrderByBuilder[]): AfterJoinBuilder<S, A>;
+  groupBy(fn: (aliases: A, prev: Expression[]) => Expression | Expression[]): GroupingBuilder<S, A>;
+  orderBy(fn: (aliases: { [key in keyof A]: { [key_ in keyof A[key]]: OrderByBuilder } }, prev: OrderByBuilder[]) => OrderByBuilder | OrderByBuilder[]): AfterJoinBuilder<S, A>;
 
   limit(value: number): AfterJoinBuilder<S, A>;
   offset(value: number): AfterJoinBuilder<S, A>;
