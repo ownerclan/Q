@@ -8,7 +8,15 @@ export function Int(options?: { length: number }): Column<number> {
   return columnBuilder(options);
 }
 
+export function Decimal(options?: { length: number }): Column<number> {
+  return columnBuilder(options);
+}
+
 export function Varchar(options?: { length: number }): Column<string> {
+  return columnBuilder(options);
+}
+
+export function Text(options?: { length: number }): Column<string> {
   return columnBuilder(options);
 }
 
@@ -17,6 +25,14 @@ export function Enum<T extends { [key: number]: string }>(values: T): Column<T[n
 }
 
 export function Timestamp(): Column<Date> {
+  return columnBuilder();
+}
+
+export function Date(): Column<Date> {
+  return columnBuilder();
+}
+
+export function Time(): Column<string> {
   return columnBuilder();
 }
 
