@@ -63,7 +63,7 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
   limit(value: number): AfterJoinBuilder<S, A>;
   offset(value: number): AfterJoinBuilder<S, A>;
 
-  select<P extends Record_>(fn: (aliases: A) => P): Select<P>;
+  select<P extends Partial<Record_>>(fn: (aliases: A) => P): Select<P>;
   scalar<P extends Expression>(fn: (aliases: A) => P): P;
 }
 
@@ -271,7 +271,7 @@ export function Q<S extends Schema>(schema: S): Q<S> {
               [kind]: "select",
               value: value_,
               them() {
-                return queryToString(($) => Object.entries(value_).map(([k, v]) => `${$(v)} AS ${quote(k)}`).join(", "));
+                return queryToString(($) => Object.entries(value_).map(([k, v]) => v !== undefined ? `${$(v)} AS ${quote(k)}` : "").join(", "));
               },
             };
           },
@@ -404,7 +404,11 @@ export function q<T = any>(text: readonly string[], ...args: Expression[]): Vari
 }
 
 export type ExpressionToTs<T extends Expression> = T extends { tsType: any } ? T["tsType"] : T;
-export type SelectToTs<T extends Select<Record_>> = { [key in keyof T["value"]]: ExpressionToTs<T["value"][key]> };
+
+type PartialProperties<T> = Exclude<{ [key in keyof T]: undefined extends T[key] ? key : never }[keyof T], undefined>;
+export type SelectToTs<T extends Select<Partial<Record_>>> =
+  { [key in PartialProperties<T["value"]>]?: ExpressionToTs<Exclude<T["value"][key], undefined>> }
+& { [key in Exclude<keyof T["value"], PartialProperties<T["value"]>>]: T["value"][key] };
 
 export * from "./sqlFunction";
 export * from "./columnTypes";
