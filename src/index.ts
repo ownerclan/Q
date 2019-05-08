@@ -344,8 +344,8 @@ export function Q<S extends Schema>(schema: S): Q<S> {
                   `UPDATE ${quote(table)} SET` +
                   (isSelectQuery(value_)
                     ? ` (${Object.keys(value_.value).map(quote).join(", ")}) = (${value_})`
-                    // NOTE: v !== undefined looks unnecessary
-                    : ` ${Object.entries(value_).map(([k, v]) => v !== undefined ? `${quote(k)} = ${$(v)}` : "").join(", ")}`)
+                    // NOTE: v !== undefined doesn't work. why???
+                    : ` ${Object.entries(value_).map(([k, v]) => `${quote(k)} = ${$(v as any)}`).join(", ")}`)
                   + where,
                   parameters];
               },
