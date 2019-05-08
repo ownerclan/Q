@@ -46,7 +46,7 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
   readonly value: {
     from: TablePrimary<S>;
     aliases: A;
-    joins: Array<[TablePrimary<S>, keyof A, ["on", Expression] | ["using", string[]]]>;
+    joins: Array<[TablePrimary<S>, string & keyof A, ["on", Expression] | ["using", string[]]]>;
     where?: Expression;
     groupBy: { by: Expression[], having?: Expression };
     orderBy: OrderBy[];
@@ -134,12 +134,12 @@ interface UpdateBuilder<S extends Schema, T extends keyof S["tables"], A extends
 }
 
 interface Q<S extends Schema> {
-  from<T extends keyof S["tables"]>(table: T): SelectBuilder<S, { [key in T]: RecordOfTable<S["tables"][T]> }>;
-  from<T extends keyof S["tables"], A extends string>(table: T, alias: A): SelectBuilder<S, { [key in A]: RecordOfTable<S["tables"][T]> }>;
+  from<T extends keyof S["tables"] & string>(table: T): SelectBuilder<S, { [key in T]: RecordOfTable<S["tables"][T]> }>;
+  from<T extends keyof S["tables"] & string, A extends string>(table: T, alias: A): SelectBuilder<S, { [key in A]: RecordOfTable<S["tables"][T]> }>;
   from<T extends Select<Record_>, A extends string>(query: T, alias: A): SelectBuilder<S, { [key in A]: T["value"] }>;
 
-  insert<T extends keyof S["tables"]>(table: T): InsertBuilder<S, T>;
-  update<T extends keyof S["tables"]>(table: T): UpdateBuilder<S, T, { [key in T]: RecordOfTable<S["tables"][T]> }>;
+  insert<T extends keyof S["tables"] & string>(table: T): InsertBuilder<S, T>;
+  update<T extends keyof S["tables"] & string>(table: T): UpdateBuilder<S, T, { [key in T]: RecordOfTable<S["tables"][T]> }>;
 }
 
 function isSelectQuery(s: any): s is Select<Record_> {
@@ -166,7 +166,7 @@ export function Q<S extends Schema>(schema: S): Q<S> {
         if (aliases[alias_] === undefined) {
           return [
             _.mapValues(schema.tables[table].value.columns,
-              (_, k) => raw`\`${alias_}\`.\`${k}\``),
+              (_, k) => raw`${quote(alias_)}.${quote(k)}`),
             alias_];
         } else {
           throw new Error("Duplicated alias!");
@@ -176,7 +176,7 @@ export function Q<S extends Schema>(schema: S): Q<S> {
       }
     } else if (isSelectQuery(table)) {
       if (alias !== undefined) {
-        return [_.mapValues(table.value, (_, k) => raw`\`${alias}\`.\`${k}\``), alias];
+        return [_.mapValues(table.value, (_, k) => raw`${quote(alias)}.${quote(k)}`), alias];
       } else {
         throw new Error("Alias please");
       }
@@ -202,7 +202,7 @@ export function Q<S extends Schema>(schema: S): Q<S> {
 
     function tablePrimaryToString(tablePrimary: TablePrimary<S>): string {
       if (typeof tablePrimary === "string") {
-        return `\`${tablePrimary}\``;
+        return quote(tablePrimary);
       } else if (isSelectQuery(tablePrimary)) {
         const [queryString, parameters_] = tablePrimary.them();
         parameters.push(...parameters_);
@@ -221,9 +221,9 @@ export function Q<S extends Schema>(schema: S): Q<S> {
         function queryToString(selectClauseFn: ($: (expression: Expression) => string) => string) {
           const [$, $$, parameters] = useStringifier();
           return [
-            `SELECT ${selectClauseFn($)} FROM ${$$(value.from)} \`${alias_}\``
+            `SELECT ${selectClauseFn($)} FROM ${$$(value.from)} ${quote(alias_)}`
             + value.joins.map(([table, alias, clause]) =>
-              ` JOIN ${$$(table)} \`${alias}\` ${clause[0] === "on"
+              ` JOIN ${$$(table)} ${quote(alias)} ${clause[0] === "on"
                 ? `ON ${$(clause[1])}`
                 : `USING(${clause[1].map(quote).join(",")})`}`)
             + (value.where ? ` WHERE ${$(value.where)}` : "")
@@ -270,7 +270,7 @@ export function Q<S extends Schema>(schema: S): Q<S> {
               [kind]: "select",
               value: value_,
               them() {
-                return queryToString(($) => Object.entries(value_).map(([k, v]) => `${$(v)} AS \`${k}\``).join(", "));
+                return queryToString(($) => Object.entries(value_).map(([k, v]) => `${$(v)} AS ${quote(k)}`).join(", "));
               },
             };
           },
@@ -318,11 +318,11 @@ export function Q<S extends Schema>(schema: S): Q<S> {
             [kind]: "insert",
             them() {
               return [
-                `INSERT INTO \`${table}\``
+                `INSERT INTO ${quote(table)}`
                 + (isSelectQuery(value)
-                  ? ` (${Object.keys(value).map((i) => `\`${i}\``).join(", ")}) ${value}`
+                  ? ` (${Object.keys(value).map(quote).join(", ")}) ${value}`
                   // NOTE: v !== undefined looks unnecessary and maybe `as any` also
-                  : ` SET ${Object.entries(value).map(([k, v]) => v !== undefined ? `\`${k}\` = ${$(v as any)}` : "").join(", ")}`),
+                  : ` SET ${Object.entries(value).map(([k, v]) => v !== undefined ? `${quote(k)} = ${$(v as any)}` : "").join(", ")}`),
                 parameters];
             },
           };
@@ -341,11 +341,11 @@ export function Q<S extends Schema>(schema: S): Q<S> {
               [kind]: "update",
               them() {
                 return [
-                  `UPDATE \`${table}\` SET` +
+                  `UPDATE ${quote(table)} SET` +
                   (isSelectQuery(value_)
-                    ? ` (${Object.keys(value_.value).map((k) => `\`${k}\``).join(", ")}) = (${value_})`
+                    ? ` (${Object.keys(value_.value).map(quote).join(", ")}) = (${value_})`
                     // NOTE: v !== undefined looks unnecessary
-                    : ` ${Object.entries(value_).map(([k, v]) => v !== undefined ? `\`${k}\` = ${$(v)}` : "").join(", ")}`)
+                    : ` ${Object.entries(value_).map(([k, v]) => v !== undefined ? `${quote(k)} = ${$(v)}` : "").join(", ")}`)
                   + where,
                   parameters];
               },
