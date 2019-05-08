@@ -46,7 +46,7 @@ const query = qb.from("car")
   .where(({ car }) => q`${car.weight} < 500`)
   .groupBy(($) => [$.human.name, $.human.gender])
   .orderBy(($) => $.human.age)
-  .orderBy(($, prev) => [...prev!, $.human.height.desc()]) // previous value of orderBy is passed to prev
+  .orderBy(($, prev) => [...prev, $.human.height.desc()]) // previous value of orderBy is passed to prev
   .limit(100)
   .select(({ car, human }) => ({
     id: distinct(car.id),
