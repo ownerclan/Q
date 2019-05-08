@@ -79,13 +79,8 @@ interface GroupingBuilder<S extends Schema, A extends Aliases> extends AfterJoin
   having(fn: (aliases: A, prev?: Expression) => Expression): AfterJoinBuilder<S, A>;
 }
 
-// NOTE: subquery for insert, update
-interface PartialSelect<Return extends Partial<Record_>> {
-  [kind]: "select";
-  readonly value: Return;
-}
-
-interface Select<Return extends Record_> {
+// NOTE: useful for partially typed code
+interface Select<Return extends Partial<Record_>> {
   [kind]: "select";
   readonly value: Return;
 
@@ -115,10 +110,8 @@ interface Insert {
   them(): readonly [string, Array<Exclude<Expression, Variable<unknown>>>];
 }
 
-// FIXME: Make PartialSelect not allow values for not existing columns
-
 interface InsertBuilder<S extends Schema, T extends keyof S["tables"]> {
-  set(value: InsertValues<S["tables"][T]["value"]["columns"]> | PartialSelect<InsertValues<S["tables"][T]["value"]["columns"]>>): Insert;
+  set(value: InsertValues<S["tables"][T]["value"]["columns"]> | Select<InsertValues<S["tables"][T]["value"]["columns"]>>): Insert;
 }
 
 type UpdateValues<T extends Table<any>["value"]["columns"]> = {
@@ -137,7 +130,7 @@ interface UpdateBuilder<S extends Schema, T extends keyof S["tables"], A extends
     where: Expression,
   };
 
-  set(value: UpdateValues<S["tables"][T]["value"]["columns"]> | PartialSelect<UpdateValues<S["tables"][T]["value"]["columns"]>>): Update;
+  set(value: UpdateValues<S["tables"][T]["value"]["columns"]> | Select<UpdateValues<S["tables"][T]["value"]["columns"]>>): Update;
   where(fn: (aliases: A) => Expression): UpdateBuilder<S, T, A>;
 }
 
