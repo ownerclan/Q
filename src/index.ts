@@ -46,7 +46,7 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
   readonly value: {
     from: TablePrimary<S>;
     aliases: A;
-    joins: Array<[TablePrimary<S>, keyof A, ["on", Expression] | ["using", Expression | [Expression, Expression]]]>;
+    joins: Array<[TablePrimary<S>, keyof A, ["on", Expression] | ["using", string[]]]>;
     where?: Expression;
     groupBy: { by: Expression[], having?: Expression };
     orderBy: OrderBy[];
@@ -72,8 +72,8 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
 type JoinBuilder<S extends Schema, A extends Aliases> = SelectBuilder<S, A>;
 interface JoiningBuilder<S extends Schema, A extends Aliases, Joinee extends Record_, Alias extends string> {
   on(fn: (joinee: Joinee, aliases: A) => Expression): SelectBuilder<S, A & { [key in Alias]: Joinee }>;
-  using(left: keyof Joinee, right: keyof A[keyof A]): SelectBuilder<S, A & { [key in Alias]: Joinee }>;
-  using(left: keyof Joinee & keyof A[keyof A]): SelectBuilder<S, A & { [key in Alias]: Joinee }>;
+  using(column: keyof Joinee & keyof A[keyof A]): SelectBuilder<S, A & { [key in Alias]: Joinee }>;
+  using(columns: Array<keyof Joinee & keyof A[keyof A]>): SelectBuilder<S, A & { [key in Alias]: Joinee }>;
 }
 
 type AfterJoinBuilder<S extends Schema, A extends Aliases> = Omit<SelectBuilder<S, A>, "join">;
@@ -154,6 +154,10 @@ function isScalar(s: any): s is Scalar<unknown> {
   return (s as Scalar<unknown>)[kind] === "scalar";
 }
 
+function quote(x: string): string {
+  return "`" + x + "`";
+}
+
 export function Q<S extends Schema>(schema: S): Q<S> {
   function buildAlias(aliases: Aliases, table: TablePrimary<S>, alias?: string): [Record_, string] {
     if (typeof table === "string") {
@@ -221,9 +225,7 @@ export function Q<S extends Schema>(schema: S): Q<S> {
             + value.joins.map(([table, alias, clause]) =>
               ` JOIN ${$$(table)} \`${alias}\` ${clause[0] === "on"
                 ? `ON ${$(clause[1])}`
-                : `USING(${Array.isArray(clause[1])
-                  ? `${$(clause[1][0])}, ${$(clause[1][1])}`
-                  : $(clause[1])})`}`)
+                : `USING(${clause[1].map(quote).join(",")})`}`)
             + (value.where ? ` WHERE ${$(value.where)}` : "")
             + (value.groupBy.by.length ? " GROUP BY " + value.groupBy.by.map((i) => $(i)).join(", ") : "")
             + (value.groupBy.having ? ` HAVING ${$(value.groupBy.having)}` : "")
@@ -298,8 +300,9 @@ export function Q<S extends Schema>(schema: S): Q<S> {
               on(fn: (self: Record_, aliases: Aliases) => Expression) {
                 return buildJoin({ ...newValue, joins: [...value.joins, [joinee, alias_, ["on", fn(self, value.aliases)]]] });
               },
-              using(left: string, right?: string) {
-                return buildJoin({ ...newValue, joins: [...value.joins, [joinee, alias_, ["using", right === undefined ? left : [left, right]]]] });
+              using(columnOrColumns: string | string[]) {
+                const columns = Array.isArray(columnOrColumns) ? columnOrColumns : [columnOrColumns]
+                return buildJoin({ ...newValue, joins: [...value.joins, [joinee, alias_, ["using", columns]]] });
               },
             } as any;
           },
