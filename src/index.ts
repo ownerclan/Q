@@ -30,8 +30,6 @@ type RecordOfTable<T extends Table<{ [key: string]: Column<any, boolean, boolean
 
 type TablePrimary<S extends Schema> = keyof S["tables"] | Select<Record_>;
 
-type TsToRecord<T extends {}> = { [key in keyof T]: Variable<T[key]> };
-
 type OrderDirection = "asc" | "desc";
 
 type OrderBy = [Expression, OrderDirection];
@@ -81,6 +79,12 @@ interface GroupingBuilder<S extends Schema, A extends Aliases> extends AfterJoin
   having(fn: (aliases: A, prev?: Expression) => Expression): AfterJoinBuilder<S, A>;
 }
 
+// NOTE: subquery for insert, update
+interface PartialSelect<Return extends Partial<Record_>> {
+  [kind]: "select";
+  readonly value: Return;
+}
+
 interface Select<Return extends Record_> {
   [kind]: "select";
   readonly value: Return;
@@ -97,10 +101,12 @@ type OptionalColumns<T extends Table<any>["value"]["columns"]> = {
   ? never
   : key }[keyof T];
 
+type VariableOrRaw<T> = Variable<T> | T;
+
 type InsertValues<T extends Table<any>["value"]["columns"]> = {
-  [key in OptionalColumns<T>]?: key extends NullableColumns<T> ? T[key]["tsType"] | null : T[key]["tsType"]
+  [key in OptionalColumns<T>]?: VariableOrRaw<key extends NullableColumns<T> ? T[key]["tsType"] | null : T[key]["tsType"]>
 } & {
-    [key in Exclude<keyof T, OptionalColumns<T>>]: key extends NullableColumns<T> ? T[key]["tsType"] | null : T[key]["tsType"]
+    [key in Exclude<keyof T, OptionalColumns<T>>]: VariableOrRaw<key extends NullableColumns<T> ? T[key]["tsType"] | null : T[key]["tsType"]>
   };
 
 interface Insert {
@@ -109,12 +115,14 @@ interface Insert {
   them(): readonly [string, Array<Exclude<Expression, Variable<unknown>>>];
 }
 
+// FIXME: Make PartialSelect not allow values for not existing columns
+
 interface InsertBuilder<S extends Schema, T extends keyof S["tables"]> {
-  set(value: InsertValues<S["tables"][T]["value"]["columns"]> | Select<TsToRecord<InsertValues<S["tables"][T]["value"]["columns"]>>>): Insert;
+  set(value: InsertValues<S["tables"][T]["value"]["columns"]> | PartialSelect<InsertValues<S["tables"][T]["value"]["columns"]>>): Insert;
 }
 
 type UpdateValues<T extends Table<any>["value"]["columns"]> = {
-  [key in keyof T]?: key extends NullableColumns<T> ? T[key]["tsType"] | null : T[key]["tsType"]
+  [key in keyof T]?: VariableOrRaw<key extends NullableColumns<T> ? T[key]["tsType"] | null : T[key]["tsType"]>
 };
 
 interface Update {
@@ -129,7 +137,7 @@ interface UpdateBuilder<S extends Schema, T extends keyof S["tables"], A extends
     where: Expression,
   };
 
-  set(value: UpdateValues<S["tables"][T]["value"]["columns"]> | Select<TsToRecord<UpdateValues<S["tables"][T]["value"]["columns"]>>>): Update;
+  set(value: UpdateValues<S["tables"][T]["value"]["columns"]> | PartialSelect<UpdateValues<S["tables"][T]["value"]["columns"]>>): Update;
   where(fn: (aliases: A) => Expression): UpdateBuilder<S, T, A>;
 }
 
@@ -402,7 +410,7 @@ export function q<T = any>(text: readonly string[], ...args: Expression[]): Vari
   } as any;
 }
 
-export type ExpressionToTs<T extends Expression> = T extends { tsType: any } ? T["tsType"] : unknown;
+export type ExpressionToTs<T extends Expression> = T extends { tsType: any } ? T["tsType"] : T;
 export type SelectToTs<T extends Select<Record_>> = { [key in keyof T["value"]]: ExpressionToTs<T["value"][key]> };
 
 export * from "./sqlFunction";
