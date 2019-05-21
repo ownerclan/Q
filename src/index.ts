@@ -53,8 +53,8 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
   };
 
   join<T extends keyof S["tables"] & string>(table: T): JoiningBuilder<S, A, RecordOfTable<S["tables"][T]>, T>;
-  join<T extends keyof S["tables"], A extends string>(table: T, alias: A): JoiningBuilder<S, A & { [key in A]: RecordOfTable<S["tables"][T]> }, RecordOfTable<S["tables"][T]>, A>;
-  join<T extends Select<Record_>, A extends string>(query: T, alias: A): JoiningBuilder<S, A & { [key in A]: T["value"] }, T["value"], A>;
+  join<T extends keyof S["tables"], Alias extends string>(table: T, alias: Alias): JoiningBuilder<S, A & { [key in Alias]: RecordOfTable<S["tables"][T]> }, RecordOfTable<S["tables"][T]>, Alias>;
+  join<T extends Select<Record_>, Alias extends string>(query: T, alias: Alias): JoiningBuilder<S, A & { [key in Alias]: T["value"] }, T["value"], Alias>;
 
   where(fn: (aliases: A, prev?: Expression) => Expression): AfterJoinBuilder<S, A>;
   groupBy(fn: (aliases: A, prev: Expression[]) => Expression | Expression[]): GroupingBuilder<S, A>;
