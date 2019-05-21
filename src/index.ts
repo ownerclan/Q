@@ -226,7 +226,7 @@ export function Q<S extends Schema>(schema: S): Q<S> {
             + value.joins.map(([table, alias, clause]) =>
               ` JOIN ${$$(table)} ${quote(alias)} ${clause[0] === "on"
                 ? `ON ${$(clause[1])}`
-                : `USING(${clause[1].map(quote).join(",")})`}`)
+                : `USING(${clause[1].map(quote).join(",")})`}`).join("")
             + (value.where ? ` WHERE ${$(value.where)}` : "")
             + (value.groupBy.by.length ? " GROUP BY " + value.groupBy.by.map((i) => $(i)).join(", ") : "")
             + (value.groupBy.having ? ` HAVING ${$(value.groupBy.having)}` : "")
