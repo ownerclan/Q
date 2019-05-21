@@ -44,7 +44,7 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
   readonly value: {
     from: TablePrimary<S>;
     aliases: A;
-    joins: Array<[TablePrimary<S>, string & keyof A, ["on", Expression] | ["using", string[]]]>;
+    joins: Array<["inner" | "left" | "right", TablePrimary<S>, string & keyof A, ["on", Expression] | ["using", string[]]]>;
     where?: Expression;
     groupBy: { by: Expression[], having?: Expression };
     orderBy: OrderBy[];
@@ -55,6 +55,14 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
   join<T extends keyof S["tables"] & string>(table: T): JoiningBuilder<S, A, RecordOfTable<S["tables"][T]>, T>;
   join<T extends keyof S["tables"], Alias extends string>(table: T, alias: Alias): JoiningBuilder<S, A & { [key in Alias]: RecordOfTable<S["tables"][T]> }, RecordOfTable<S["tables"][T]>, Alias>;
   join<T extends Select<Record_>, Alias extends string>(query: T, alias: Alias): JoiningBuilder<S, A & { [key in Alias]: T["value"] }, T["value"], Alias>;
+
+  leftJoin<T extends keyof S["tables"] & string>(table: T): JoiningBuilder<S, A, RecordOfTable<S["tables"][T]>, T>;
+  leftJoin<T extends keyof S["tables"], Alias extends string>(table: T, alias: Alias): JoiningBuilder<S, A & { [key in Alias]: RecordOfTable<S["tables"][T]> }, RecordOfTable<S["tables"][T]>, Alias>;
+  leftJoin<T extends Select<Record_>, Alias extends string>(query: T, alias: Alias): JoiningBuilder<S, A & { [key in Alias]: T["value"] }, T["value"], Alias>;
+
+  rightJoin<T extends keyof S["tables"] & string>(table: T): JoiningBuilder<S, A, RecordOfTable<S["tables"][T]>, T>;
+  rightJoin<T extends keyof S["tables"], Alias extends string>(table: T, alias: Alias): JoiningBuilder<S, A & { [key in Alias]: RecordOfTable<S["tables"][T]> }, RecordOfTable<S["tables"][T]>, Alias>;
+  rightJoin<T extends Select<Record_>, Alias extends string>(query: T, alias: Alias): JoiningBuilder<S, A & { [key in Alias]: T["value"] }, T["value"], Alias>;
 
   where(fn: (aliases: A, prev?: Expression) => Expression): AfterJoinBuilder<S, A>;
   groupBy(fn: (aliases: A, prev: Expression[]) => Expression | Expression[]): GroupingBuilder<S, A>;
@@ -69,12 +77,15 @@ interface SelectBuilder<S extends Schema, A extends Aliases> {
 
 type JoinBuilder<S extends Schema, A extends Aliases> = SelectBuilder<S, A>;
 interface JoiningBuilder<S extends Schema, A extends Aliases, Joinee extends Record_, Alias extends string> {
+  a: keyof A;
+  b: keyof A[keyof A];
+  c: Joinee;
   on(fn: (joinee: Joinee, aliases: A) => Expression): SelectBuilder<S, A & { [key in Alias]: Joinee }>;
   using(column: keyof Joinee & keyof A[keyof A]): SelectBuilder<S, A & { [key in Alias]: Joinee }>;
   using(columns: Array<keyof Joinee & keyof A[keyof A]>): SelectBuilder<S, A & { [key in Alias]: Joinee }>;
 }
 
-type AfterJoinBuilder<S extends Schema, A extends Aliases> = Omit<SelectBuilder<S, A>, "join">;
+type AfterJoinBuilder<S extends Schema, A extends Aliases> = Omit<SelectBuilder<S, A>, "join" | "leftJoin" | "rightJoin">;
 interface GroupingBuilder<S extends Schema, A extends Aliases> extends AfterJoinBuilder<S, A> {
   having(fn: (aliases: A, prev?: Expression) => Expression): AfterJoinBuilder<S, A>;
 }
@@ -223,8 +234,8 @@ export function Q<S extends Schema>(schema: S): Q<S> {
           const [$, $$, parameters] = useStringifier();
           return [
             `SELECT ${selectClauseFn($)} FROM ${$$(value.from)} ${quote(alias_)}`
-            + value.joins.map(([table, alias, clause]) =>
-              ` JOIN ${$$(table)} ${quote(alias)} ${clause[0] === "on"
+            + value.joins.map(([type, table, alias, clause]) =>
+              `${type === "inner" ? "" : ` ${type.toUpperCase()}`} JOIN ${$$(table)} ${quote(alias)} ${clause[0] === "on"
                 ? `ON ${$(clause[1])}`
                 : `USING(${clause[1].map(quote).join(",")})`}`).join("")
             + (value.where ? ` WHERE ${$(value.where)}` : "")
@@ -291,22 +302,27 @@ export function Q<S extends Schema>(schema: S): Q<S> {
 
       // TODO: replace any to something more strict
       function buildJoin(value: SelectBuilder<S, Aliases>["value"]): JoinBuilder<S, any> {
-        return {
-          value,
-          ...buildSelect(value),
-          join(joinee: TablePrimary<S>, alias?: string) {
+        function _(joinType: "inner" | "left" | "right") {
+          return (joinee: TablePrimary<S>, alias?: string) => {
             const [self, alias_] = buildAlias(value.aliases, joinee, alias);
             const newValue = { ...value, aliases: { ...value.aliases, [alias_]: self } };
             return {
               on(fn: (self: Record_, aliases: Aliases) => Expression) {
-                return buildJoin({ ...newValue, joins: [...value.joins, [joinee, alias_, ["on", fn(self, value.aliases)]]] });
+                return buildJoin({ ...newValue, joins: [...value.joins, [joinType, joinee, alias_, ["on", fn(self, value.aliases)]]] });
               },
               using(columnOrColumns: string | string[]) {
-                const columns = Array.isArray(columnOrColumns) ? columnOrColumns : [columnOrColumns]
-                return buildJoin({ ...newValue, joins: [...value.joins, [joinee, alias_, ["using", columns]]] });
+                const columns = Array.isArray(columnOrColumns) ? columnOrColumns : [columnOrColumns];
+                return buildJoin({ ...newValue, joins: [...value.joins, [joinType, joinee, alias_, ["using", columns]]] });
               },
             } as any;
-          },
+          };
+        }
+        return {
+          value,
+          ...buildSelect(value),
+          join: _("inner"),
+          leftJoin: _("left") as any,
+          rightJoin: _("right") as any,
         };
       }
       return buildJoin({ from: table, joins: [], aliases: { [alias_]: self }, orderBy: [], groupBy: { by: [] } });
